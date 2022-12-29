@@ -3,15 +3,14 @@
 # @author    criticalEntropy
 # @date     23.12.2022
 #############################################################
-
 # Import packages
 import requests
-
 
 class BtcAddressMonitoring:
     # Constructor
     def __init__(self, watch_address):
         self.watch_address = watch_address
+        self.transaction_list = []
 
     # Destructor
     def __del__(self):
@@ -113,3 +112,54 @@ class BtcAddressMonitoring:
 
         # Return False if the monitored address has not received any BTC
         return False
+
+    #############################################################
+    # @brief    This function requests the outgoing transaction of a Bitcoin address
+    #           from the Blockchain.info API and stores them in a list.
+    #
+    # @para     watch_address - Address to be monitored
+    # @return   list - A list containing the transaction information of a Bitcoin address
+    #                   -> transmitter address
+    #                   -> receiver address
+    #                   -> transaction amount in *10^-8 btc
+    # @author   criticalEntropy
+    # @date     29.12.2022
+    #############################################################
+
+    def get_transactions_from_btc_address(self):
+        # Set the number of data packets to 500 per page - A large number was chosen so that Api requests can be reduced
+        tx_page = 500
+
+        # Add the page parameter to the API URL
+        api_url = f"https://blockchain.info/rawaddr/{self.watch_address}?limit={tx_page}"
+
+        # Make an API request to get the transaction data for the specified address
+        response = requests.get(api_url)
+
+        # Check if the API request was successful
+        if response.ok:
+            # Get the transaction data from the API response
+            data = response.json()
+
+            # Check if the API response contains transaction data
+            if "txs" in data:
+                # Iterate over the transactions in the API response
+                for tx in data["txs"]:
+                    # Check if the transaction has inputs and outputs
+                    if "inputs" in tx and "out" in tx:
+                        # Get the address of the sender and the recipient, and the amount of the transaction
+                        from_address = tx["inputs"][0]["prev_out"]["addr"] if tx["inputs"] else None
+                        to_address = tx["out"][0]["addr"] if tx["out"] else None
+                        amount = tx["out"][0]["value"] if tx["out"] and "value" in tx["out"][0] else None
+
+                        # Check if all required data is present
+                        if from_address and to_address and amount:
+                            # Add the transaction data to the list
+                            self.transaction_list.append((from_address, to_address, amount))
+        else:
+            # Handle the error here
+            self.transaction_list = []
+            pass
+
+        # Return the list of transactions
+        return self.transaction_list

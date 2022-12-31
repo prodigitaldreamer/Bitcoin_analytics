@@ -1,16 +1,20 @@
 #############################################################
 # @file     btc_parser.py
-# @author    criticalEntropy
+# @author   criticalEntropy
 # @date     23.12.2022
+# Hints:    https://www.blockchain.com/explorer/api/blockchain_api
 #############################################################
 # Import packages
 import requests
+
 
 class BtcAddressMonitoring:
     # Constructor
     def __init__(self, watch_address):
         self.watch_address = watch_address
+
         self.transaction_list = []
+        self.matrix = []
 
     # Destructor
     def __del__(self):
@@ -163,3 +167,77 @@ class BtcAddressMonitoring:
 
         # Return the list of transactions
         return self.transaction_list
+
+
+class BtcBlockMonitoring:
+    # Constructor
+    def __init__(self, start_block, end_block):
+        self.start_block = start_block
+        self.end_block = end_block
+
+        self.matrix = []
+
+    # Destructor
+    def __del__(self):
+        print(f"Deleting BtcAddressMonitoring object with block {self.end_block}")
+
+    #############################################################
+    # @brief    This function checks if a bitcoin address is potentially involved in mixing bitcoin
+    #
+    # @para     watch_address - Address to be monitored
+    # @return   list - A list containing the transaction information of a Bitcoin address
+    #                   -> transmitter address
+    #                   -> receiver address
+    #                   -> transaction amount in *10^-8 btc
+    # @author   criticalEntropy
+    # @date     29.12.2022
+    #############################################################
+
+    def get_mixed_btc_transactions_from_btc_blocks(self):
+
+        # Initialize lists to store the transaction data
+        sender_addresses = []
+        recipient_addresses = []
+        amounts = []
+
+        # Iterate over the block range
+        for block_num in range(self.start_block, self.end_block + 1):
+            # Make an API request to get the block data
+            response = requests.get(f"https://blockchain.info/rawblock/{block_num}")
+
+            # Check if the API request was successful
+            if response.ok:
+                # Get the block data from the API response
+                block_data = response.json()
+
+                # Iterate over the transactions in the block
+                for tx in block_data["tx"]:
+                    # Check if the transaction is a CoinJoin
+                    if len(tx["inputs"]) > 1 and len(tx["out"]) > 1:
+                        # Iterate over the inputs in the transaction
+                        for input_data in tx["inputs"]:
+                            # Get the sender address and amount
+                            sender_address = input_data["prev_out"]["addr"]
+                            amount = input_data["prev_out"]["value"]
+
+                            # Add the sender address and amount to the lists
+                            sender_addresses.append(sender_address)
+                            amounts.append(amount)
+
+                        # Iterate over the outputs in the transaction
+                        for output_data in tx["out"]:
+                            # Get the recipient address and amount
+                            recipient_address = output_data["addr"]
+                            recipient_addresses.append(recipient_address)
+                            amount = output_data["value"]
+
+        # Iterate over the sender addresses
+        for i in range(len(sender_addresses)):
+            # Create a list for the current transaction
+            transaction = [sender_addresses[i], recipient_addresses[i], amounts[i]]
+
+            # Add the transaction to the matrix
+            self.matrix.append(transaction)
+
+        # Return the matrix
+        return self.matrix
